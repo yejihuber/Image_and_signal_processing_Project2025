@@ -9,23 +9,26 @@ from datetime import datetime
 @dataclass
 class InspectionResult:
     is_pass: bool
-    no_bubbles: bool
+    no_small_bubbles: bool
+    no_large_bubbles: bool
     confidence: float
 
 class SyringeInspector:
     def __init__(self):
-        # ROI parameters (percentages of frame size)
+        # ROI parameters
         self.roi_x_percent = 0.25
         self.roi_y_percent = 0.2
         self.roi_width_percent = 0.5
         self.roi_height_percent = 0.6
         
-        # Bubble detection parameters - Increased sensitivity
-        self.bubble_min_radius = 2  # Smaller minimum radius to detect tinier bubbles
-        self.bubble_max_radius = 20  # Increased maximum radius
-        self.bubble_sensitivity = 12  # Lower value for more sensitive detection
-        self.bubble_intensity_min = 130  # Lower brightness threshold
-        self.bubble_intensity_diff = 20  # Lower required brightness difference
+        # Small bubble detection parameters
+        self.small_bubble_min_radius = 2
+        self.small_bubble_max_radius = 10
+        
+        # Large oval bubble parameters
+        self.large_bubble_min_area = 200  # Minimum area for large bubbles
+        self.large_bubble_max_area = 5000  # Maximum area for large bubbles
+        self.min_oval_ratio = 1.5  # Minimum width/height ratio for ovals
         
         # Create output directory for failed inspections
         self.output_dir = "failed_inspections"
@@ -54,99 +57,74 @@ class SyringeInspector:
         
         return frame, (roi_x, roi_y, roi_width, roi_height)
 
-    def detect_bubbles(self, gray: np.ndarray) -> Tuple[bool, int]:
-        """Detect very small air bubbles while ignoring printed markings."""
-        # Step 1: Enhanced image preprocessing for better sensitivity
-        # Apply stronger contrast enhancement
-        clahe = cv.createCLAHE(clipLimit=4.0, tileGridSize=(4,4))
+    def detect_bubbles(self, gray: np.ndarray) -> Tuple[bool, bool, list, list]:
+        """Detect both small circular and large oval bubbles."""
+        # Enhance contrast
+        clahe = cv.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
         enhanced = clahe.apply(gray)
         
-        # Apply sharpening to make bubbles more distinct
-        kernel = np.array([[-1,-1,-1],
-                         [-1, 9,-1],
-                         [-1,-1,-1]])
-        sharpened = cv.filter2D(enhanced, -1, kernel)
+        # Apply Gaussian blur to reduce noise
+        blurred = cv.GaussianBlur(enhanced, (3,3), 0)
         
-        # Bilateral filter to reduce noise while preserving bubble edges
-        denoised = cv.bilateralFilter(sharpened, 5, 50, 50)
+        # Edge detection
+        edges = cv.Canny(blurred, 30, 150)
         
-        # Step 2: Create a more sensitive mask for potential bubble regions
-        local_mean = cv.GaussianBlur(denoised, (15, 15), 0)
-        diff = cv.subtract(denoised, local_mean)
-        _, bright_mask = cv.threshold(diff, self.bubble_intensity_diff, 255, cv.THRESH_BINARY)
+        # Dilate edges slightly to ensure closed contours
+        kernel = np.ones((2,2), np.uint8)
+        dilated = cv.dilate(edges, kernel, iterations=1)
         
-        # Apply morphological operations to enhance bubble regions
-        kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3,3))
-        bright_mask = cv.morphologyEx(bright_mask, cv.MORPH_OPEN, kernel)
+        # Find contours
+        contours, _ = cv.findContours(dilated, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
         
-        # Step 3: Multi-scale circle detection for better sensitivity
-        all_circles = []
+        small_bubbles = []
+        large_bubbles = []
         
-        # Detect circles at multiple sensitivity levels
-        for sensitivity in [self.bubble_sensitivity, self.bubble_sensitivity + 2]:
-            circles = cv.HoughCircles(
-                denoised,
-                cv.HOUGH_GRADIENT,
-                dp=1,
-                minDist=8,  # Reduced minimum distance between circles
-                param1=40,  # Reduced edge threshold
-                param2=sensitivity,
-                minRadius=self.bubble_min_radius,
-                maxRadius=self.bubble_max_radius
-            )
+        for contour in contours:
+            # Calculate contour properties
+            area = cv.contourArea(contour)
+            perimeter = cv.arcLength(contour, True)
             
-            if circles is not None:
-                all_circles.extend(circles[0])
-        
-        if not all_circles:
-            return True, 0
-        
-        # Convert to numpy array for processing
-        all_circles = np.array(all_circles)
-        
-        # Step 4: Validate detected circles with more lenient criteria
-        valid_bubbles = []
-        for circle in all_circles:
-            x, y, r = np.uint16(np.around(circle))
-            
-            # Check if circle is within bounds
-            if not (r < x < gray.shape[1]-r and r < y < gray.shape[0]-r):
+            if perimeter == 0:
                 continue
-            
-            # Create masks for analysis
-            bubble_mask = np.zeros_like(gray)
-            cv.circle(bubble_mask, (x, y), r, 255, -1)
-            
-            # Analyze intensity profile with more lenient thresholds
-            roi = denoised[y-r:y+r, x-r:x+r]
-            mask_roi = bubble_mask[y-r:y+r, x-r:x+r]
-            
-            mean_intensity = cv.mean(roi, mask=mask_roi)[0]
-            
-            # Create a ring around the bubble
-            outer_mask = np.zeros_like(gray)
-            cv.circle(outer_mask, (x, y), r+2, 255, 2)
-            surrounding_intensity = cv.mean(denoised, mask=outer_mask)[0]
-            
-            # More lenient criteria for bubble detection
-            if (mean_intensity > self.bubble_intensity_min or  # Bright enough
-                mean_intensity > surrounding_intensity + self.bubble_intensity_diff):  # OR significantly brighter than surroundings
                 
-                # Check if this circle overlaps with any previously detected ones
-                is_unique = True
-                for (px, py, pr) in valid_bubbles:
-                    dist = np.sqrt((x - px)**2 + (y - py)**2)
-                    if dist < (r + pr):
-                        is_unique = False
-                        break
+            # Calculate circularity
+            circularity = 4 * np.pi * area / (perimeter * perimeter)
+            
+            # Get rotated rectangle for oval detection
+            rect = cv.minAreaRect(contour)
+            (x, y), (width, height), angle = rect
+            aspect_ratio = max(width, height) / min(width, height) if min(width, height) > 0 else 0
+            
+            # Check intensity
+            mask = np.zeros_like(gray)
+            cv.drawContours(mask, [contour], 0, 255, -1)
+            mean_intensity = cv.mean(enhanced, mask=mask)[0]
+            
+            # Check surrounding intensity
+            surrounding_mask = cv.dilate(mask, kernel, iterations=3) - mask
+            surrounding_intensity = cv.mean(enhanced, mask=surrounding_mask)[0]
+            intensity_diff = abs(mean_intensity - surrounding_intensity)
+            
+            if area < self.large_bubble_min_area:
+                # Small bubble detection
+                (x, y), radius = cv.minEnclosingCircle(contour)
+                radius = int(radius)
                 
-                if is_unique:
-                    valid_bubbles.append((x, y, r))
-                    # Draw the detected bubble (for visualization)
-                    cv.circle(gray, (x, y), r, (0, 255, 0), 1)  # Circle
-                    cv.circle(gray, (x, y), 1, (0, 0, 255), 1)  # Center point
+                if (self.small_bubble_min_radius <= radius <= self.small_bubble_max_radius and
+                    circularity > 0.7 and intensity_diff > 20):
+                    small_bubbles.append((int(x), int(y), radius))
+                    
+            else:
+                # Large oval bubble detection
+                if (self.large_bubble_min_area <= area <= self.large_bubble_max_area and
+                    aspect_ratio >= self.min_oval_ratio and
+                    intensity_diff > 20):
+                    box = cv.boxPoints(rect)
+                    box = np.int0(box)
+                    large_bubbles.append((box, (int(x), int(y)), (int(width), int(height)), angle))
         
-        return len(valid_bubbles) == 0, len(valid_bubbles)
+        return (len(small_bubbles) == 0, len(large_bubbles) == 0,
+                small_bubbles, large_bubbles)
 
     def analyze_frame(self, frame: np.ndarray) -> Tuple[np.ndarray, InspectionResult]:
         """Analyze a single frame and return inspection results."""
@@ -154,34 +132,44 @@ class SyringeInspector:
         frame, (x, y, w, h) = self.define_roi(frame)
         roi = frame[y:y+h, x:x+w]
         
-        # Convert to grayscale and normalize
+        # Convert to grayscale
         gray = cv.cvtColor(roi, cv.COLOR_BGR2GRAY)
-        gray = cv.normalize(gray, None, 0, 255, cv.NORM_MINMAX)
         
         # Perform bubble detection
-        no_bubbles, bubble_count = self.detect_bubbles(gray)
+        no_small_bubbles, no_large_bubbles, small_bubbles, large_bubbles = self.detect_bubbles(gray)
         
-        # Calculate confidence based on bubble detection
-        confidence = 1.0 if no_bubbles else 0.5
+        # Draw small bubbles
+        for bx, by, br in small_bubbles:
+            cv.circle(roi, (bx, by), br, (0, 0, 255), 1)
+            cv.circle(roi, (bx, by), 1, (0, 0, 255), 1)
+            cv.putText(roi, f"{br*2}µm", (bx + br + 2, by),
+                      cv.FONT_HERSHEY_SIMPLEX, 0.3, (0, 0, 255), 1)
         
-        # Determine overall result
-        is_pass = no_bubbles
+        # Draw large oval bubbles
+        for box, center, (width, height), angle in large_bubbles:
+            cv.drawContours(roi, [box], 0, (255, 0, 0), 2)
+            cx, cy = center
+            cv.putText(roi, f"{int(max(width, height))}µm", (cx + 5, cy),
+                      cv.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
         
-        # Draw results on frame
-        self._draw_results(frame, is_pass, no_bubbles)
+        # Calculate confidence and overall result
+        confidence = 1.0 if (no_small_bubbles and no_large_bubbles) else 0.5
+        is_pass = no_small_bubbles and no_large_bubbles
         
-        # Draw bubble count
-        cv.putText(frame, f"Bubbles: {bubble_count}", 
-                  (10, 90),
-                  cv.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        # Draw results
+        self._draw_results(frame, is_pass, no_small_bubbles, no_large_bubbles,
+                          len(small_bubbles), len(large_bubbles))
         
         return frame, InspectionResult(
             is_pass=is_pass,
-            no_bubbles=no_bubbles,
+            no_small_bubbles=no_small_bubbles,
+            no_large_bubbles=no_large_bubbles,
             confidence=confidence
         )
 
-    def _draw_results(self, frame: np.ndarray, is_pass: bool, no_bubbles: bool):
+    def _draw_results(self, frame: np.ndarray, is_pass: bool,
+                     no_small_bubbles: bool, no_large_bubbles: bool,
+                     small_count: int, large_count: int):
         """Draw inspection results on the frame."""
         # Overall result
         status = "PASS" if is_pass else "FAIL"
@@ -189,11 +177,17 @@ class SyringeInspector:
         cv.putText(frame, f"Status: {status}", (10, 30),
                   cv.FONT_HERSHEY_SIMPLEX, 1, color, 2)
         
-        # Bubble check
-        check_color = (0, 255, 0) if no_bubbles else (0, 0, 255)
-        cv.putText(frame, f"No Bubbles: {'✓' if no_bubbles else '✗'}", 
-                  (10, 60),
-                  cv.FONT_HERSHEY_SIMPLEX, 0.6, check_color, 2)
+        # Bubble counts
+        y_pos = 60
+        for label, count, is_ok in [
+            ("Small Bubbles", small_count, no_small_bubbles),
+            ("Large Bubbles", large_count, no_large_bubbles)
+        ]:
+            check_color = (0, 255, 0) if is_ok else (0, 0, 255)
+            cv.putText(frame, f"{label}: {count}", 
+                      (10, y_pos),
+                      cv.FONT_HERSHEY_SIMPLEX, 0.6, check_color, 2)
+            y_pos += 25
 
     def save_failed_inspection(self, frame: np.ndarray):
         """Save failed inspection images for review."""
