@@ -4,6 +4,13 @@ from datetime import datetime
 import os
 import glob
 
+
+#Änderung Anja
+import joblib
+
+# Load trained ML model
+ml_model = joblib.load("syringe_model.pkl")
+
 def preprocess_frame(frame):
     """Preprocess frame for particle and bubble detection."""
     # Convert to HSV for better color analysis
@@ -307,6 +314,17 @@ def run_detection():
                 # Extract ROI
                 x, y, w, h = capture_zone
                 roi = frame[y:y+h, x:x+w].copy()
+                # Extract ML features and get ML prediction
+                try:
+                    roi_gray = cv.cvtColor(roi, cv.COLOR_BGR2GRAY)
+                    resized = cv.resize(roi_gray, (64, 64))
+                    ml_features = resized.flatten().reshape(1, -1)
+                    ml_prediction = ml_model.predict(ml_features)[0]
+                    cv.putText(frame, f"ML Prediction: {ml_prediction}", (10, 180),
+                        cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+                except Exception as e:
+                    print(f"ML prediction failed: {e}")
+
                 
                 # Process ROI
                 edges, gray, hsv = preprocess_frame(roi)
