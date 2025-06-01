@@ -314,7 +314,7 @@ def run_detection():
                 # Extract ROI
                 x, y, w, h = capture_zone
                 roi = frame[y:y+h, x:x+w].copy()
-                # Extract ML features and get ML prediction
+                # INPUT:Anja bis Zeile 327 Extract ML features and get ML prediction
                 try:
                     roi_gray = cv.cvtColor(roi, cv.COLOR_BGR2GRAY)
                     resized = cv.resize(roi_gray, (64, 64))
