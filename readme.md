@@ -1,10 +1,10 @@
-🧪 Syringe Inspection Using Image Processing Techniques
+# 🧪 Syringe Inspection Using Image Processing Techniques
 
-📘 Overview
+## 📘 Overview
 
 This project was developed for the Image and Signal Processing (ISP-AD23-FS25) course. It focuses on automated visual inspection of pre-filled syringes to detect defects such as bubbles, cracks, or impurities. The system leverages computer vision and machine learning to improve accuracy and efficiency over manual inspection.
 
-👥 Authors
+## 👥 Authors
 
 - Hädener Anja
 - Heini Sara
@@ -12,7 +12,7 @@ This project was developed for the Image and Signal Processing (ISP-AD23-FS25) c
 
 Date: 14 May 2025
 
-⚙️ Setup
+## ⚙️ Setup
 
 - Requirements: Python ≥ 3.9, Jupyter Notebook (recommended IDE: Visual Studio Code or JupyterLab)
 - Install libraries:
@@ -21,7 +21,7 @@ Date: 14 May 2025
 pip install numpy matplotlib seaborn opencv-python scikit-learn tensorflow
 ```
 
-📂 Dataset Structure
+## 📂 Dataset Structure
 
 The dataset folder is organized as follows:
 
@@ -33,7 +33,7 @@ The dataset folder is organized as follows:
 | models/    | Saved model checkpoints                                       |
 | results/   | Visualization outputs and evaluation metrics                  |
 
-🧠 Implementation Pipeline
+## 🧠 Implementation Pipeline
 
 The analysis follows a multi-stage pipeline:
 
@@ -51,32 +51,32 @@ The analysis follows a multi-stage pipeline:
 - Visualization
   - Data insights and results plotted with Seaborn and Matplotlib
 
-🔍 Example Output
+## 🔍 Example Output
 
 - Defective syringe regions highlighted with bounding boxes
 - Predicted defect categories (e.g., scratch, bubble, foreign particle)
 - Reported metrics after training (precision, recall, F1-score)
 
-🧩 Key Libraries
+## 🧩 Key Libraries
 
 - OpenCV — Image preprocessing and feature extraction
 - TensorFlow / Keras — Deep learning model implementation
 - scikit-learn — Classical machine learning & evaluation
 - Matplotlib / Seaborn — Visualization
 
-📊 Evaluation Metrics
+## 📊 Evaluation Metrics
 
 - Accuracy
 - Precision, Recall, F1-Score
 - Confusion Matrix
 - ROC Curves (optional)
 
-🚀 Future Improvements
+## 🚀 Future Improvements
 
 - Integrate real-time inspection using a camera feed
 - Deploy the trained model to an embedded inspection system
 - Expand the dataset across syringe types and lighting conditions
 
-🧾 License
+## 🧾 License
 
 This project was developed for academic purposes under the ISP-AD23-FS25 module. Use or modification is permitted for educational and research contexts only.
