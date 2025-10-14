@@ -34,7 +34,7 @@ The dataset folder is organized as follows:
 
 ## 🧠 Implementation Pipeline
 
-The analysis follows a multi-stage pipeline:
+Four stages:
 
 - Preprocessing
   - Grayscale conversion
@@ -45,16 +45,16 @@ The analysis follows a multi-stage pipeline:
   - Texture and shape descriptors
   - Statistical feature computation
 - Classification
-  - Supervised models (e.g., Random Forest, CNN)
+  - Supervised models (Random Forest, CNN(selected))
   - Model evaluation (classification report)
-- Visualization
-  - Data insights and results plotted with Seaborn and Matplotlib
+- Inspection 
+  - mask top/bottom 20% to avoid labels.
+  - Count only visually confirmed defects.
 
 ## 🔍 Example Output
 
 - Defective syringe regions highlighted with bounding boxes
-- Predicted defect categories (e.g., scratch, bubble, foreign particle)
-- Reported metrics after training (precision, recall, F1-score)
+- Reported metrics after traincategories (precision, recall, F1-score)
 
 ## 🧩 Key Libraries
 
@@ -72,9 +72,9 @@ The analysis follows a multi-stage pipeline:
 
 ## 🚀 Future Improvements
 
-- Add object detection methods (e.g. YOLOv8) to explicitly localize defects instead of relying on binary classification.
-- Use larger, more diverse datasets with real-world production variability.
-- We attempted post-verification by tuning various parameters to visually confirm defects, but it was unsuccessful; in future work, we aim to improve this step by finding better parameters or applying more advanced detection techniques.
+- Explore object detection (e.g., YOLOv8) for explicit localization.
+- Use larger, more diverse datasets with real-world variability.
+- Improve post-verification via better parameters/advanced techniques.
 
 ## 🧾 License
 
