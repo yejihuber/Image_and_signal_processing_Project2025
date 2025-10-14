@@ -25,13 +25,12 @@ pip install numpy matplotlib seaborn opencv-python scikit-learn tensorflow
 
 The dataset folder is organized as follows:
 
-| Folder     | Description                                                   |
-|------------|---------------------------------------------------------------|
-| images/    | Raw syringe images collected for analysis                     |
-| labels/    | CSV or JSON annotation files describing defect categories     |
-| processed/ | Pre-processed and filtered images ready for training          |
-| models/    | Saved model checkpoints                                       |
-| results/   | Visualization outputs and evaluation metrics                  |
+| Folder | Description |
+|---|---|
+| cropped ROI | We experimented with cropping images to a smaller region. However, this approach did not improve model performance. |
+| dataset_modeltraining | This folder contains the ROIs used for model training. Images were captured with a smartphone, resulting in high-quality, full-syringe ROIs. |
+| photo with labtop webcam | Initial attempts to capture images using a laptop webcam. Quality and resolution were too low. Training on these images led to poor performance. |
+| Result_data | This folder contains all the ROIs that have been created and used for live testing. These are used in the final evaluation and result analysis. |
 
 ## 🧠 Implementation Pipeline
 
@@ -47,7 +46,7 @@ The analysis follows a multi-stage pipeline:
   - Statistical feature computation
 - Classification
   - Supervised models (e.g., Random Forest, CNN)
-  - Model evaluation (confusion matrix, classification report)
+  - Model evaluation (classification report)
 - Visualization
   - Data insights and results plotted with Seaborn and Matplotlib
 
@@ -67,15 +66,15 @@ The analysis follows a multi-stage pipeline:
 ## 📊 Evaluation Metrics
 
 - Accuracy
-- Precision, Recall, F1-Score
-- Confusion Matrix
-- ROC Curves (optional)
+- Precision
+- Recall
+- F1-Score
 
 ## 🚀 Future Improvements
 
-- Integrate real-time inspection using a camera feed
-- Deploy the trained model to an embedded inspection system
-- Expand the dataset across syringe types and lighting conditions
+- Add object detection methods (e.g. YOLOv8) to explicitly localize defects instead of relying on binary classification.
+- Use larger, more diverse datasets with real-world production variability.
+- We attempted post-verification by tuning various parameters to visually confirm defects, but it was unsuccessful; in future work, we aim to improve this step by finding better parameters or applying more advanced detection techniques.
 
 ## 🧾 License
 
